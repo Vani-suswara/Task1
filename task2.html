@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TasteCraft — Recipe Builder</title>
+  <style>
+    :root{--accent:#ff6b6b;--muted:#6b7280;--card:#ffffff;--bg:#f5f7fb}
+    *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+    body{margin:0;background:var(--bg);color:#0f172a}
+    header{display:flex;align-items:center;justify-content:space-between;padding:1rem;gap:1rem;background:linear-gradient(90deg,#fff 0,#f8fafc 100%);box-shadow:0 1px 0 rgba(15,23,42,0.04)}
+    h1{font-size:1.1rem;margin:0}
+    .controls{display:flex;align-items:center;gap:.5rem}
+    .btn{background:var(--accent);color:#fff;padding:.5rem .8rem;border-radius:.5rem;border:0;cursor:pointer}
+    .btn.secondary{background:#fff;color:var(--accent);border:1px solid rgba(15,23,42,0.06)}
+    .container{max-width:1100px;margin:1rem auto;padding:1rem}
+
+    .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+    input[type=search], select{padding:.5rem .6rem;border-radius:.5rem;border:1px solid rgba(15,23,42,0.06)}
+
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
+    .card{background:var(--card);padding:1rem;border-radius:10px;box-shadow:0 6px 18px rgba(11,15,30,0.03);display:flex;flex-direction:column}
+    .card img{height:150px;object-fit:cover;border-radius:8px;width:100%}
+    .meta{display:flex;justify-content:space-between;align-items:center;margin-top:.6rem}
+    .meta .title{font-weight:600}
+    .small{font-size:.85rem;color:var(--muted)}
+    .ingredients{margin-top:.6rem;font-size:.9rem}
+    .actions{display:flex;gap:.4rem;margin-top:.6rem}
+    .pill{background:#f1f5f9;padding:.25rem .5rem;border-radius:999px;font-size:.8rem}
+
+    /* modal form */
+    .overlay{position:fixed;inset:0;background:rgba(4,6,8,0.35);display:none;align-items:center;justify-content:center;padding:1rem}
+    .overlay.open{display:flex}
+    form.modal{width:100%;max-width:760px;background:#fff;padding:1rem;border-radius:12px;max-height:90vh;overflow:auto}
+    form .row{display:flex;gap:.5rem}
+    label{font-weight:600;font-size:.85rem}
+    input,textarea,select{width:100%;padding:.5rem .6rem;border-radius:6px;border:1px solid rgba(15,23,42,0.06)}
+    textarea{min-height:90px}
+    .ingredients-list{margin-top:.5rem}
+    .ingredients-list .ing-row{display:flex;gap:.4rem;margin-bottom:.4rem}
+    .ingredients-list input{height:38px}
+    .img-preview{display:flex;gap:.5rem;align-items:center}
+    .img-preview img{width:96px;height:64px;object-fit:cover;border-radius:6px}
+
+    footer{padding:1rem;text-align:center;color:var(--muted);font-size:.9rem}
+
+    @media (max-width:640px){.row{flex-direction:column}.meta{flex-direction:column;align-items:flex-start} .controls{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TasteCraft — Recipe Builder</h1>
+    <div class="controls">
+      <button class="btn" id="addRecipeBtn">+ Add Recipe</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="toolbar">
+      <input type="search" id="search" placeholder="Search by recipe, ingredient or tag" />
+      <select id="filterCategory">
+        <option value="">All categories</option>
+      </select>
+      <select id="sortBy">
+        <option value="new">Newest</option>
+        <option value="cal_asc">Calories ↑</option>
+        <option value="cal_desc">Calories ↓</option>
+      </select>
+      <button class="btn secondary" id="clearStorage">Reset App</button>
+    </section>
+
+    <section id="recipes" class="grid" aria-live="polite"></section>
+  </main>
+
+  <div class="overlay" id="overlay">
+    <form class="modal" id="recipeForm">
+      <h2 id="formTitle">Add Recipe</h2>
+      <div class="row">
+        <div style="flex:1">
+          <label>Title</label>
+          <input id="title" required />
+        </div>
+        <div style="width:160px">
+          <label>Category</label>
+          <input id="category" placeholder="e.g. Dessert" />
+        </div>
+      </div>
+      <div style="margin-top:.6rem">
+        <label>Short description</label>
+        <input id="description" />
+      </div>
+
+      <div style="margin-top:.6rem">
+        <label>Ingredients (name | qty | kcal per unit)</label>
+        <div class="ingredients-list" id="ingredientsList"></div>
+        <button type="button" class="btn secondary" id="addIngredient">+ Ingredient</button>
+      </div>
+
+      <div style="margin-top:.6rem" class="row">
+        <div style="flex:1">
+          <label>Servings</label>
+          <input id="servings" type="number" min="1" value="1" />
+        </div>
+        <div style="width:160px">
+          <label>Prep time (mins)</label>
+          <input id="time" type="number" min="0" />
+        </div>
+      </div>
+
+      <div style="margin-top:.6rem">
+        <label>Image (optional)</label>
+        <div class="img-preview">
+          <input id="imageFile" type="file" accept="image/*" />
+          <div id="imgPreviewWrap"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">
+        <button type="button" class="btn secondary" id="cancelBtn">Cancel</button>
+        <button class="btn" id="saveBtn">Save Recipe</button>
+      </div>
+
+      <input type="hidden" id="editingId" />
+    </form>
+  </div>
+
+  <footer>Built with ❤️ — TasteCraft demo. Data persisted in localStorage.</footer>
+
+  <script>
+    // Minimal demo app implementing required features
+    const STORAGE_KEY = 'tastecraft_recipes_v1';
+    const sampleSubstitutes = {
+      'butter': 'margarine or coconut oil',
+      'egg': 'flaxseed + water (1 tbsp flax + 3 tbsp water)',
+      'milk': 'almond milk or soy milk',
+      'sugar': 'honey or maple syrup (adjust liquid)'
+    };
+
+    // DOM refs
+    const addRecipeBtn = document.getElementById('addRecipeBtn');
+    const overlay = document.getElementById('overlay');
+    const recipeForm = document.getElementById('recipeForm');
+    const ingredientsList = document.getElementById('ingredientsList');
+    const addIngredient = document.getElementById('addIngredient');
+    const recipesWrap = document.getElementById('recipes');
+    const searchInput = document.getElementById('search');
+    const filterCategory = document.getElementById('filterCategory');
+    const sortBy = document.getElementById('sortBy');
+    const clearStorage = document.getElementById('clearStorage');
+    const imageFile = document.getElementById('imageFile');
+    const imgPreviewWrap = document.getElementById('imgPreviewWrap');
+
+    let recipes = loadRecipes();
+
+    // --- UI helpers ---
+    function openForm(editId) {
+      overlay.classList.add('open');
+      document.getElementById('formTitle').textContent = editId ? 'Edit Recipe' : 'Add Recipe';
+      if (editId) {
+        const r = recipes.find(x => x.id === editId);
+        if (!r) return;
+        document.getElementById('title').value = r.title;
+        document.getElementById('category').value = r.category || '';
+        document.getElementById('description').value = r.description || '';
+        document.getElementById('servings').value = r.servings || 1;
+        document.getElementById('time').value = r.time || '';
+        document.getElementById('editingId').value = r.id;
+        ingredientsList.innerHTML = '';
+        r.ingredients.forEach(ing => addIngredientRow(ing.name, ing.qty, ing.kcal));
+        if (r.image) showImagePreview(r.image);
+      } else {
+        recipeForm.reset(); ingredientsList.innerHTML = '';
+        addIngredientRow(); document.getElementById('editingId').value = '';
+        imgPreviewWrap.innerHTML = '';
+      }
+    }
+    function closeForm(){ overlay.classList.remove('open'); }
+
+    function uid(){ return 'r_'+Math.random().toString(36).slice(2,9); }
+
+    function addIngredientRow(name='', qty='', kcal=''){
+      const div = document.createElement('div'); div.className='ing-row';
+      div.innerHTML = `
+        <input placeholder="name" class="ing-name" value="${escapeHtml(name)}" />
+        <input placeholder="qty (e.g. 100g, 1 cup)" class="ing-qty" value="${escapeHtml(qty)}" />
+        <input placeholder="kcal per unit" class="ing-kcal" value="${escapeHtml(kcal)}" />
+        <button type="button" class="btn secondary remove-ing">x</button>`;
+      ingredientsList.appendChild(div);
+      div.querySelector('.remove-ing').addEventListener('click',()=>div.remove());
+    }
+
+    function escapeHtml(s=''){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+    // image preview
+    imageFile.addEventListener('change', e=>{
+      const f = e.target.files[0]; if (!f) return; const reader = new FileReader();
+      reader.onload = ev => showImagePreview(ev.target.result);
+      reader.readAsDataURL(f);
+    });
+    function showImagePreview(src){ imgPreviewWrap.innerHTML = '<img src="'+src+'" alt="preview"/>' }
+
+    // --- storage ---
+    function loadRecipes(){
+      try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : sampleSeed(); }
+      catch(e){ console.error(e); return sampleSeed(); }
+    }
+    function saveRecipes(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes)); render(); }
+
+    // sample seed data
+    function sampleSeed(){ return [
+      {id:uid(),title:'Quick Veggie Pasta',category:'Main',description:'Simple tomato pasta',servings:2,time:20,
+        ingredients:[{name:'Pasta',qty:'200g',kcal:350},{name:'Tomato sauce',qty:'150g',kcal:80},{name:'Olive oil',qty:'1 tbsp',kcal:120}],
+        image:'', created:Date.now(),bookmarked:false
+      },
+      {id:uid(),title:'Banana Oat Smoothie',category:'Breakfast',description:'Healthy shake',servings:1,time:5,
+        ingredients:[{name:'Banana',qty:'1',kcal:100},{name:'Oats',qty:'40g',kcal:150},{name:'Milk',qty:'200ml',kcal:120}],image:'',created:Date.now()-1000000,bookmarked:true}
+    ]; }
+
+    // compute calories
+    function computeCalories(ingredients){
+      let total=0;
+      ingredients.forEach(i=>{ const k = parseFloat(String(i.kcal||'').replace(/[^0-9.\-]/g,'')); if (!isNaN(k)) total+=k; });
+      return Math.round(total);
+    }
+
+    // render
+    function render(){
+      // category options
+      const cats = Array.from(new Set(recipes.map(r=>r.category).filter(Boolean)));
+      filterCategory.innerHTML = '<option value="">All categories</option>' + cats.map(c=>`<option>${c}</option>`).join('');
+
+      // filter + search + sort
+      const q = (searchInput.value||'').toLowerCase().trim();
+      let list = recipes.filter(r=>{
+        if (filterCategory.value && r.category!==filterCategory.value) return false;
+        if (!q) return true;
+        if (r.title.toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q) || (r.category||'').toLowerCase().includes(q)) return true;
+        if ((r.ingredients||[]).some(i=> (i.name||'').toLowerCase().includes(q))) return true;
+        return false;
+      });
+      if (sortBy.value==='cal_asc') list.sort((a,b)=>computeCalories(a.ingredients)-computeCalories(b.ingredients));
+      else if (sortBy.value==='cal_desc') list.sort((a,b)=>computeCalories(b.ingredients)-computeCalories(a.ingredients));
+      else list.sort((a,b)=>b.created - a.created);
+
+      recipesWrap.innerHTML = list.map(r=>recipeCardHtml(r)).join('') || '<div style="grid-column:1/-1;padding:2rem;text-align:center;color:var(--muted)">No recipes found — add one!</div>';
+
+      // attach card events
+      document.querySelectorAll('.card').forEach(card=>{
+        card.querySelector('.edit')?.addEventListener('click', ()=> openForm(card.dataset.id));
+        card.querySelector('.delete')?.addEventListener('click', ()=> { if (confirm('Delete this recipe?')) { recipes = recipes.filter(x=>x.id!==card.dataset.id); saveRecipes(); } });
+        card.querySelector('.bookmark')?.addEventListener('click', ()=>{
+          const id = card.dataset.id; const r = recipes.find(x=>x.id===id); r.bookmarked = !r.bookmarked; saveRecipes();
+        });
+      });
+    }
+
+    function recipeCardHtml(r){
+      const kcal = computeCalories(r.ingredients||[]);
+      const img = r.image ? `<img src="${r.image}" alt="${r.title}">` : `<div style="height:150px;background:linear-gradient(90deg,#fff,#f8fafc);display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)">No image</div>`;
+      const ingHtml = (r.ingredients||[]).slice(0,4).map(i=>`<div>${escapeHtml(i.name)} <span class="small">${escapeHtml(i.qty||'')}</span> <span class="pill">${escapeHtml(String(i.kcal||''))} kcal</span></div>`).join('');
+      return `
+      <article class="card" data-id="${r.id}">
+        ${img}
+        <div class="meta">
+          <div>
+            <div class="title">${escapeHtml(r.title)}</div>
+            <div class="small">${escapeHtml(r.category||'—')} • ${r.servings} serving(s) • ${r.time? r.time+' mins':''}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="small">${kcal} kcal total</div>
+            <div style="margin-top:.4rem">
+              <button class="btn bookmark">${r.bookmarked? '★':'☆'}</button>
+            </div>
+          </div>
+        </div>
+        <div class="ingredients">${ingHtml}</div>
+        <div class="actions">
+          <button class="btn edit">Edit</button>
+          <button class="btn secondary delete">Delete</button>
+          <button class="btn secondary" onclick="suggestSub('${r.id}')" >Suggest</button>
+        </div>
+      </article>`;
+    }
+
+    // suggestion popup (simple)
+    window.suggestSub = function(id){
+      const r = recipes.find(x=>x.id===id);
+      if(!r) return; const found = r.ingredients.map(i=>({name:i.name,sub:sampleSubstitutes[(i.name||'').toLowerCase()]})).filter(x=>x.sub);
+      if (!found.length) return alert('No substitute suggestions for this recipe (try editing ingredient names to common names like "butter", "egg").');
+      alert('Substitute suggestions:\n' + found.map(f=>`${f.name} → ${f.sub}`).join('\n'));
+    }
+
+    // form submit
+    recipeForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const id = document.getElementById('editingId').value || uid();
+      const title = document.getElementById('title').value.trim();
+      const category = document.getElementById('category').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const servings = parseInt(document.getElementById('servings').value)||1;
+      const time = parseInt(document.getElementById('time').value)||0;
+      const ingNodes = Array.from(ingredientsList.querySelectorAll('.ing-row'));
+      const ingredients = ingNodes.map(n=>({name:n.querySelector('.ing-name').value.trim(), qty:n.querySelector('.ing-qty').value.trim(), kcal:n.querySelector('.ing-kcal').value.trim()})).filter(i=>i.name);
+      const image = imgPreviewWrap.querySelector('img') ? imgPreviewWrap.querySelector('img').src : '';
+      const obj = {id,title,category,description,ingredients,servings,time,image,created:Date.now(),bookmarked:false};
+      const existing = recipes.findIndex(x=>x.id===id);
+      if (existing>=0) recipes.splice(existing,1,obj); else recipes.unshift(obj);
+      saveRecipes(); closeForm();
+    });
+
+    // events
+    addRecipeBtn.addEventListener('click', ()=>openForm());
+    document.getElementById('cancelBtn').addEventListener('click', closeForm);
+    overlay.addEventListener('click', e=>{ if (e.target===overlay) closeForm(); });
+    addIngredient.addEventListener('click', ()=>addIngredientRow());
+    searchInput.addEventListener('input', ()=>render());
+    filterCategory.addEventListener('change', ()=>render());
+    sortBy.addEventListener('change', ()=>render());
+    clearStorage.addEventListener('click', ()=>{ if (confirm('Clear all recipes and reset?')) { localStorage.removeItem(STORAGE_KEY); recipes = loadRecipes(); render(); } });
+
+    // load on start
+    render();
+
+    // Accessibility: keyboard shortcut to add (a)
+    document.addEventListener('keydown', e=>{ if (e.key==='a' && !e.metaKey && !e.ctrlKey){ openForm(); } });
+  </script>
+</body>
+</html>
