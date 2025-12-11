@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PlantPal — Indoor Plant Care & Reminders</title>
+
+  <!-- Simple reset + Google-ish font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f6f9fb; --card:#ffffff; --muted:#6b7280; --accent:#16a34a; --glass:rgba(2,6,23,0.03);
+      --success:#16a34a; --danger:#ef4444; --soft:#eef2f6;
+    }
+    [data-theme='dark']{
+      --bg:#071126; --card:#081226; --muted:#9aa8bf; --accent:#34d399; --glass:rgba(255,255,255,0.03);
+      --success:#34d399; --danger:#fb7185; --soft: rgba(255,255,255,0.03);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,system-ui,Arial; background:linear-gradient(180deg,var(--bg), #eaf1f5);
+      color: #0f1724; padding:20px; transition:background .25s,color .25s;
+    }
+    [data-theme='dark'] body{ color:#e6eef6 }
+
+    .app{max-width:1100px;margin:0 auto}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+    h1{margin:0;font-size:20px}
+    .lead{color:var(--muted);font-size:14px}
+
+    /* layout */
+    .topbar{margin-left:auto;display:flex;gap:8px;align-items:center}
+    .btn{background:var(--accent);border:0;color:white;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06);color:var(--muted)}
+    .btn.warn{background:var(--danger)}
+    .controls{display:flex;gap:8px;align-items:center}
+
+    .main{display:grid;grid-template-columns:360px 1fr;gap:18px}
+    @media (max-width:980px){ .main{grid-template-columns:1fr} }
+
+    /* left column (form, filters) */
+    .panel{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.06)}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+    input, select, textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:var(--soft);font-size:14px}
+    .row{display:flex;gap:8px}
+    .small{font-size:13px;color:var(--muted)}
+
+    /* cards grid */
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    @media (max-width:1200px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:720px){.grid{grid-template-columns:1fr}}
+
+    .plant-card{background:linear-gradient(180deg,var(--card), rgba(255,255,255,0.02));padding:12px;border-radius:12px;display:flex;flex-direction:column;gap:8px;min-height:140px}
+    .plant-top{display:flex;align-items:center;gap:12px}
+    .avatar{width:64px;height:64px;border-radius:10px;background:linear-gradient(135deg,#d1fae5,#bbf7d0);display:flex;align-items:center;justify-content:center;font-weight:700;color:#065f46}
+    .plant-title{flex:1}
+    .meta{color:var(--muted);font-size:13px}
+    .pill{display:inline-block;padding:6px 8px;border-radius:999px;background:var(--soft);font-size:13px;color:var(--muted)}
+
+    .card-actions{display:flex;gap:8px;margin-top:auto}
+    .muted{color:var(--muted)}
+
+    /* upcoming */
+    .upcoming-list{display:flex;flex-direction:column;gap:8px}
+    .up-item{display:flex;justify-content:space-between;padding:8px;border-radius:8px;background:var(--soft);align-items:center}
+
+    footer{margin-top:18px;color:var(--muted);text-align:center;font-size:13px}
+
+    /* tiny helpers */
+    .flex{display:flex;align-items:center;gap:8px}
+    .file-preview{max-width:100%;border-radius:8px;margin-top:6px}
+  </style>
+</head>
+<body data-theme="light">
+  <div class="app">
+    <header>
+      <div>
+        <h1>PlantPal</h1>
+        <div class="lead">Smart indoor plant care: reminders, plant profiles, growth logs.</div>
+      </div>
+
+      <div class="topbar">
+        <div class="small muted" id="statusHint">Local saves · reminders in-browser</div>
+        <div style="width:12px"></div>
+        <button id="themeToggle" class="btn ghost">Dark</button>
+        <button id="notifBtn" class="btn">Enable Notifications</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- LEFT: Form & Filters -->
+      <aside>
+        <div class="panel">
+          <h3 id="formTitle">Add plant</h3>
+          <form id="plantForm">
+            <input type="hidden" id="plantId">
+            <label for="pname">Name</label>
+            <input id="pname" required placeholder="e.g. Monstera Deliciosa">
+
+            <label for="pspecies">Species</label>
+            <input id="pspecies" placeholder="e.g. Monstera">
+
+            <div class="row" style="margin-top:8px">
+              <div style="flex:1">
+                <label for="plast">Last watered</label>
+                <input id="plast" type="date">
+              </div>
+              <div style="width:110px">
+                <label for="pfreq">Freq (days)</label>
+                <input id="pfreq" type="number" min="1" value="7">
+              </div>
+            </div>
+
+            <label for="psun" style="margin-top:8px">Sunlight / Care level</label>
+            <select id="psun">
+              <option>Low</option><option>Medium</option><option>High</option>
+            </select>
+
+            <label for="pnotes" style="margin-top:8px">Notes / growth log</label>
+            <textarea id="pnotes" rows="3" placeholder="Write a short note or growth entry..."></textarea>
+
+            <label style="margin-top:8px">Add image (optional)</label>
+            <input id="pimg" type="file" accept="image/*">
+
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn" type="submit">Save Plant</button>
+              <button type="button" id="resetForm" class="btn ghost">Reset</button>
+              <button type="button" id="clearAll" class="btn ghost" style="margin-left:auto">Clear All</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel" style="margin-top:12px">
+          <h4>Filter & Sort</h4>
+          <label for="filterType">Sunlight</label>
+          <select id="filterType"><option value="all">All</option><option>Low</option><option>Medium</option><option>High</option></select>
+
+          <label for="search" style="margin-top:8px">Search name/species</label>
+          <input id="search" placeholder="Search...">
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button id="sortDue" class="btn ghost">Sort: Next Due</button>
+            <button id="sortName" class="btn ghost">Sort: Name</button>
+          </div>
+
+          <div style="margin-top:10px"><small class="muted">Data saved to browser localStorage · works offline</small></div>
+        </div>
+      </aside>
+
+      <!-- RIGHT: Dashboard -->
+      <section>
+        <div class="panel" style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3 style="margin:0">Your Plants</h3>
+            <div class="small muted" id="plantCount">0 plants</div>
+          </div>
+
+          <div id="grid" class="grid" style="margin-top:12px"></div>
+          <div id="empty" class="small muted" style="margin-top:12px">No plants yet — add one using the form.</div>
+        </div>
+
+        <div class="panel">
+          <h4>Upcoming watering</h4>
+          <div id="upcoming" class="upcoming-list" style="margin-top:8px"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer>PlantPal — local-first plant care • Save / export from your browser</footer>
+  </div>
+
+  <!-- tiny ding sound (short base64) -->
+  <audio id="ding" src="data:audio/mp3;base64,//uQZAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAACcQCA"></audio>
+
+  <script>
+    /***********************
+     * PlantPal — single file
+     * Features:
+     * - Add / edit / delete plants (name, species, lastWatered, freq, sunlight, notes, imageData)
+     * - Visual cards + filters + sort + theme toggle
+     * - Notifications (Notification API) + in-browser reminder checks
+     * - Growth logs (notes & single image per plant)
+     * - localStorage persistence
+     ***********************/
+
+    const LS_KEY = 'plantpal_v1';
+    let plants = load() || [];
+    let theme = localStorage.getItem('plantpal_theme') || 'light';
+    const dayMs = 24*60*60*1000;
+
+    // DOM refs
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty');
+    const plantCount = document.getElementById('plantCount');
+    const upcoming = document.getElementById('upcoming');
+
+    const form = document.getElementById('plantForm');
+    const formTitle = document.getElementById('formTitle');
+    const pid = document.getElementById('plantId');
+    const pname = document.getElementById('pname');
+    const pspecies = document.getElementById('pspecies');
+    const plast = document.getElementById('plast');
+    const pfreq = document.getElementById('pfreq');
+    const psun = document.getElementById('psun');
+    const pnotes = document.getElementById('pnotes');
+    const pimg = document.getElementById('pimg');
+
+    const resetFormBtn = document.getElementById('resetForm');
+    const clearAllBtn = document.getElementById('clearAll');
+    const filterType = document.getElementById('filterType');
+    const searchInput = document.getElementById('search');
+    const sortDueBtn = document.getElementById('sortDue');
+    const sortNameBtn = document.getElementById('sortName');
+    const notifBtn = document.getElementById('notifBtn');
+    const themeToggle = document.getElementById('themeToggle');
+    const statusHint = document.getElementById('statusHint');
+
+    // init theme
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.setAttribute('data-theme', theme);
+    themeToggle.textContent = theme === 'light' ? 'Dark' : 'Light';
+
+    // event wiring
+    form.addEventListener('submit', handleSave);
+    resetFormBtn.addEventListener('click', resetForm);
+    clearAllBtn.addEventListener('click', clearAll);
+    filterType.addEventListener('change', render);
+    searchInput.addEventListener('input', debounce(render, 200));
+    sortDueBtn.addEventListener('click', ()=>{ sortMode='due'; render(); });
+    sortNameBtn.addEventListener('click', ()=>{ sortMode='name'; render(); });
+    notifBtn.addEventListener('click', requestNotificationPermission);
+    themeToggle.addEventListener('click', toggleTheme);
+
+    // reminders: check every minute
+    setInterval(checkDueAndNotify, 60*1000);
+
+    // small state
+    let sortMode = 'due'; // or 'name'
+
+    // initial sample if empty
+    if(plants.length===0){
+      plants.push({
+        id: crypto.randomUUID(),
+        name: 'Snake Plant',
+        species: 'Sansevieria',
+        lastWatered: dateStrDaysAgo(9),
+        freq: 14,
+        sunlight: 'Low',
+        notes: 'Low light tolerant.',
+        imageData: null,
+        createdAt: Date.now()
+      });
+      save();
+    }
+
+    render();
+
+    /************* Functions *************/
+
+    function handleSave(ev){
+      ev.preventDefault();
+      // capture file as DataURL if present (synchronous-ish using FileReader, so we use callback)
+      const file = pimg.files[0];
+      if(file){
+        const reader = new FileReader();
+        reader.onload = () => {
+          savePlant(reader.result);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        savePlant(null);
+      }
+    }
+
+    function savePlant(imageData){
+      const existingId = pid.value;
+      const plant = {
+        id: existingId || crypto.randomUUID(),
+        name: pname.value.trim() || 'Untitled',
+        species: pspecies.value.trim(),
+        lastWatered: plast.value || new Date().toISOString().slice(0,10),
+        freq: Number(pfreq.value) || 7,
+        sunlight: psun.value,
+        notes: pnotes.value.trim(),
+        imageData: imageData || (existingId ? (plants.find(p=>p.id===existingId)?.imageData || null) : null),
+        createdAt: existingId ? plants.find(p=>p.id===existingId)?.createdAt || Date.now() : Date.now()
+      };
+
+      if(existingId){
+        plants = plants.map(p => p.id===existingId ? plant : p);
+      } else {
+        plants.push(plant);
+      }
+      save();
+      resetForm();
+      render();
+      notifyToast('Saved', `Plant "${plant.name}" saved`);
+    }
+
+    function resetForm(){
+      form.reset();
+      pid.value='';
+      formTitle.textContent = 'Add plant';
+      pimg.value = '';
+    }
+
+    function clearAll(){
+      if(!confirm('Clear all plants from local storage?')) return;
+      plants = [];
+      save();
+      render();
+    }
+
+    function save(){
+      localStorage.setItem(LS_KEY, JSON.stringify(plants));
+      plantCount.textContent = `${plants.length} plant${plants.length!==1?'s':''}`;
+    }
+
+    function load(){
+      try{
+        return JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      }catch(e){
+        return [];
+      }
+    }
+
+    function render(){
+      grid.innerHTML='';
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = plants.filter(p=>{
+        if(filterType.value !== 'all' && p.sunlight !== filterType.value) return false;
+        if(q && !(p.name.toLowerCase().includes(q) || (p.species||'').toLowerCase().includes(q))) return false;
+        return true;
+      });
+
+      if(filtered.length===0){
+        empty.style.display='block';
+      } else {
+        empty.style.display='none';
+      }
+
+      let sorted = filtered.slice();
+      if(sortMode==='due'){
+        sorted.sort((a,b)=> nextDate(a) - nextDate(b));
+      } else {
+        sorted.sort((a,b)=> a.name.localeCompare(b.name));
+      }
+
+      sorted.forEach(p => {
+        grid.appendChild(renderCard(p));
+      });
+
+      renderUpcoming();
+      save(); // ensure count updated
+    }
+
+    function renderCard(p){
+      const el = document.createElement('div');
+      el.className = 'plant-card';
+
+      // top
+      const top = document.createElement('div'); top.className='plant-top';
+      const avatar = document.createElement('div'); avatar.className='avatar';
+      avatar.textContent = (p.name || '').split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
+      if(p.imageData){ avatar.style.background = `url('${p.imageData}') center/cover`; avatar.textContent=''; avatar.style.color='white' }
+
+      const title = document.createElement('div'); title.className='plant-title';
+      const h = document.createElement('div'); h.textContent = p.name; h.style.fontWeight=700;
+      const meta = document.createElement('div'); meta.className='meta'; meta.textContent = `${p.species || '—'} • ${p.sunlight} light`;
+      title.appendChild(h); title.appendChild(meta);
+
+      const dueDays = daysUntilNext(p);
+      const badge = document.createElement('div'); badge.className='pill'; badge.textContent = dueDays <= 0 ? 'Water now' : `In ${dueDays}d`;
+
+      top.appendChild(avatar); top.appendChild(title); top.appendChild(badge);
+
+      // notes / image preview
+      const notes = document.createElement('div'); notes.className='small muted';
+      notes.textContent = p.notes ? p.notes.slice(0,140) : 'No notes';
+
+      // actions
+      const actions = document.createElement('div'); actions.className='card-actions';
+      const waterBtn = document.createElement('button'); waterBtn.className='btn'; waterBtn.textContent='Mark watered';
+      waterBtn.onclick = ()=>{ markWatered(p.id); };
+      const editBtn = document.createElement('button'); editBtn.className='btn ghost'; editBtn.textContent='Edit';
+      editBtn.onclick = ()=>{ loadToForm(p); window.scrollTo({top:0,behavior:'smooth'}); };
+      const delBtn = document.createElement('button'); delBtn.className='btn ghost'; delBtn.textContent='Delete';
+      delBtn.onclick = ()=>{ if(confirm('Delete this plant?')){ plants = plants.filter(x=>x.id!==p.id); save(); render(); } };
+
+      actions.appendChild(waterBtn); actions.appendChild(editBtn); actions.appendChild(delBtn);
+
+      // optional image preview
+      const preview = document.createElement('div');
+      if(p.imageData){
+        const img = document.createElement('img'); img.src = p.imageData; img.className='file-preview'; img.alt='plant image';
+        preview.appendChild(img);
+      }
+
+      el.appendChild(top); el.appendChild(notes); el.appendChild(preview); el.appendChild(actions);
+      return el;
+    }
+
+    function loadToForm(p){
+      pid.value = p.id;
+      pname.value = p.name;
+      pspecies.value = p.species || '';
+      plast.value = p.lastWatered || '';
+      pfreq.value = p.freq || 7;
+      psun.value = p.sunlight || 'Medium';
+      pnotes.value = p.notes || '';
+      formTitle.textContent = 'Edit plant';
+    }
+
+    function markWatered(id){
+      plants = plants.map(p => p.id===id ? {...p, lastWatered: new Date().toISOString().slice(0,10)} : p);
+      save();
+      render();
+      notifyToast('Marked', 'Marked as watered');
+    }
+
+    function renderUpcoming(){
+      upcoming.innerHTML = '';
+      if(plants.length===0){
+        upcoming.innerHTML = '<div class="small muted">No plants</div>';
+        return;
+      }
+      const nexts = plants.map(p=>({p,d:daysUntilNext(p)})).sort((a,b)=>a.d-b.d).slice(0,6);
+      nexts.forEach(item=>{
+        const row = document.createElement('div');
+        row.className='up-item';
+        const left = document.createElement('div'); left.innerHTML = `<strong>${item.p.name}</strong><div class="small muted">${item.p.species || ''}</div>`;
+        const right = document.createElement('div'); right.innerHTML = item.d<=0 ? `<span class="pill">Due</span>` : `<span class="pill">In ${item.d}d</span>`;
+        row.appendChild(left); row.appendChild(right);
+        upcoming.appendChild(row);
+      });
+    }
+
+    // Date helpers
+    function daysUntilNext(p){
+      const last = new Date((p.lastWatered||new Date().toISOString().slice(0,10)) + 'T00:00:00');
+      const next = new Date(last.getTime() + (Number(p.freq||7) * dayMs));
+      const diff = Math.ceil((stripTime(next) - stripTime(new Date())) / dayMs);
+      return diff;
+    }
+    function nextDate(p){ const last = new Date((p.lastWatered||new Date().toISOString().slice(0,10)) + 'T00:00:00'); return new Date(last.getTime() + (Number(p.freq||7) * dayMs)); }
+    function stripTime(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+    function dateStrDaysAgo(days){ return new Date(Date.now(
